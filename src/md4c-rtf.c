@@ -660,8 +660,6 @@ render_enter_block_ul(MD_RTF* r, const MD_BLOCK_UL_DETAIL* ul)
 
   /* start new list paragraph */
   render_list_start(r);
-
-  printf("render_enter_block_ul is_tight=%u\n", ul->is_tight);
 }
 
 static void
@@ -917,8 +915,6 @@ enter_block_callback(MD_BLOCKTYPE type, void* detail, void* userdata)
 {
   MD_RTF* r = (MD_RTF*) userdata;
 
-  printf("enter_block %i\n", type);
-
   switch(type) {
       case MD_BLOCK_DOC:      render_enter_block_doc(r); break;
       case MD_BLOCK_QUOTE:    render_enter_block_quote(r); break;
@@ -945,8 +941,6 @@ static int
 leave_block_callback(MD_BLOCKTYPE type, void* detail, void* userdata)
 {
   MD_RTF* r = (MD_RTF*) userdata;
-
-  printf("leave_block %i\n", type);
 
   switch(type) {
       case MD_BLOCK_DOC:      render_leave_block_doc(r); break;
@@ -975,8 +969,6 @@ enter_span_callback(MD_SPANTYPE type, void* detail, void* userdata)
 {
   MD_RTF* r = (MD_RTF*) userdata;
 
-  printf("  enter_span %i\n", type);
-
   switch(type) {
       case MD_SPAN_EM:                RENDER_VERBATIM(r, "\\i "); break;
       case MD_SPAN_STRONG:            RENDER_VERBATIM(r, "\\b "); break;
@@ -997,8 +989,6 @@ static int
 leave_span_callback(MD_SPANTYPE type, void* detail, void* userdata)
 {
   MD_RTF* r = (MD_RTF*) userdata;
-
-  printf("  leave_span %i\n", type);
 
   switch(type) {
       case MD_SPAN_EM:                RENDER_VERBATIM(r, "\\i0 "); break;
@@ -1021,8 +1011,6 @@ static int
 text_callback(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdata)
 {
   MD_RTF* r = (MD_RTF*) userdata;
-
-  printf("           text %i\n", type);
 
   switch(type) {
       case MD_TEXT_NULLCHAR:  RENDER_VERBATIM(r, "\0"); break;
