@@ -400,7 +400,7 @@ render_font_mono(MD_RTF* r)
   RENDER_VERBATIM(r, r->cw_fs[1]);
 }
 
-inline static void
+static inline void
 render_end_block(MD_RTF* r)
 {
   /* this sequence is used to put standard paragraph space after a special
@@ -416,7 +416,7 @@ render_end_block(MD_RTF* r)
   RENDER_VERBATIM(r, "\\par\r\n");
 }
 
-inline static void
+static inline void
 render_list_start(MD_RTF* r)
 {
   MD_CHAR str_num[16];
@@ -457,7 +457,7 @@ render_list_start(MD_RTF* r)
   r->list_reset = 0;
 }
 
-inline static void
+static inline void
 render_list_item(MD_RTF* r)
 {
   MD_CHAR str_num[16];
@@ -779,7 +779,7 @@ render_enter_block_table(MD_RTF* r, const MD_BLOCK_TABLE_DETAIL* tb)
   RENDER_VERBATIM(r, r->cw_fs[1]);
 }
 
-inline static void
+static inline void
 render_leave_block_table(MD_RTF* r)
 {
   r->tabl_cols = 0;
@@ -788,14 +788,14 @@ render_leave_block_table(MD_RTF* r)
   render_end_block(r);
 }
 
-inline static void
+static inline void
 render_enter_block_thead(MD_RTF* r)
 {
   /* simply set a flag to know we are in table head */
   r->tabl_head = 1;
 }
 
-inline static void
+static inline void
 render_leave_block_thead(MD_RTF* r)
 {
   /* we are no longer in table head */
@@ -837,7 +837,7 @@ render_enter_block_tr(MD_RTF* r)
   }
 }
 
-inline static void
+static inline void
 render_leave_block_tr(MD_RTF* r)
 {
   /* close the row */
@@ -854,7 +854,7 @@ render_enter_block_td(MD_RTF* r, const MD_BLOCK_TD_DETAIL* td)
   }
 }
 
-inline static void
+static inline void
 render_leave_block_td(MD_RTF* r)
 {
   RENDER_VERBATIM(r, "\\intbl\\cell ");
@@ -871,19 +871,19 @@ render_enter_block_th(MD_RTF* r, const MD_BLOCK_TD_DETAIL* td)
   }
 }
 
-inline static void
+static inline void
 render_leave_block_th(MD_RTF* r)
 {
   RENDER_VERBATIM(r, "\\b0\\intbl\\cell ");
 }
 
-inline static void
+static inline void
 render_enter_block_p(MD_RTF* r)
 {
   render_font_norm(r);
 }
 
-inline static void
+static inline void
 render_leave_block_p(MD_RTF* r)
 {
   if(!r->no_p_end)
@@ -898,7 +898,7 @@ render_enter_span_url(MD_RTF* r, const MD_SPAN_A_DETAIL* a)
   RENDER_VERBATIM(r, "\"}{\\fldrslt ");
 }
 
-inline static void
+static inline void
 render_leave_span_url(MD_RTF* r)
 {
   RENDER_VERBATIM(r, "}}\\ul0 \\cf0 ");
