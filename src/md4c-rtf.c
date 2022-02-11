@@ -401,7 +401,7 @@ render_font_mono(MD_RTF* r)
 }
 
 inline static void
-render_end_space(MD_RTF* r)
+render_end_block(MD_RTF* r)
 {
   /* this sequence is used to put standard paragraph space after a special
   block such as list, quote or code, where space-after value is usually
@@ -540,7 +540,7 @@ render_enter_block_hr(MD_RTF* r)
   RENDER_VERBATIM(r, "\\par\\cell\\row");
 
   /* create proper space after paragraph */
-  render_end_space(r);
+  render_end_block(r);
 }
 
 static void
@@ -552,10 +552,10 @@ render_enter_block_h(MD_RTF* r, const MD_BLOCK_H_DETAIL* h)
 static void
 render_leave_block_h(MD_RTF* r, const MD_BLOCK_H_DETAIL* h)
 {
-  if(h->level % 2) {
-    RENDER_VERBATIM(r, "\\b0 \\par\r\n");
-  } else {
+  if(h->level > 3) {
     RENDER_VERBATIM(r, "\\b0\\i0 \\par\r\n");
+  } else {
+    RENDER_VERBATIM(r, "\\b0 \\par\r\n");
   }
 }
 
@@ -590,7 +590,7 @@ render_leave_block_quote(MD_RTF* r)
   RENDER_VERBATIM(r, "\\cell\\row");
 
   /* create proper space after paragraph */
-  render_end_space(r);
+  render_end_block(r);
 
   /* we can now emit \par at end of paragraph */
   r->no_p_end = 0;
@@ -627,6 +627,8 @@ render_leave_block_code(MD_RTF* r)
   /* space after block is always done due to last \n of its
   content we simply switch back to default font */
   RENDER_VERBATIM(r, "\\cell\\row\\pard\\f0");
+  /* set proper space-after parameter for next paragraphs */
+  RENDER_VERBATIM(r, r->cw_sa[2]);
 
   /* we can now emit \par at end of paragraph */
   r->no_p_end = 0;
@@ -670,7 +672,7 @@ render_leave_block_ul(MD_RTF* r)
     r->list_reset = 1;
   } else {
     /* all ended, create proper space after paragraph */
-    render_end_space(r);
+    render_end_block(r);
   }
 
   /* decrement depth */
@@ -716,7 +718,7 @@ render_leave_block_ol(MD_RTF* r)
     r->list_reset = 1;
   } else {
     /* all ended, create proper space after paragraph */
-    render_end_space(r);
+    render_end_block(r);
   }
 
   /* decrement depth */
@@ -779,13 +781,13 @@ render_enter_block_table(MD_RTF* r, const MD_BLOCK_TABLE_DETAIL* tb)
   RENDER_VERBATIM(r, r->cw_fs[1]);
 }
 
-static void
+inline static void
 render_leave_block_table(MD_RTF* r)
 {
   r->tabl_cols = 0;
 
   /* all ended, create proper space after paragraph */
-  render_end_space(r);
+  render_end_block(r);
 }
 
 inline static void
@@ -837,7 +839,7 @@ render_enter_block_tr(MD_RTF* r)
   }
 }
 
-static void
+inline static void
 render_leave_block_tr(MD_RTF* r)
 {
   /* close the row */
@@ -854,7 +856,7 @@ render_enter_block_td(MD_RTF* r, const MD_BLOCK_TD_DETAIL* td)
   }
 }
 
-static void
+inline static void
 render_leave_block_td(MD_RTF* r)
 {
   RENDER_VERBATIM(r, "\\intbl\\cell ");
@@ -871,13 +873,24 @@ render_enter_block_th(MD_RTF* r, const MD_BLOCK_TD_DETAIL* td)
   }
 }
 
-static void
+inline static void
 render_leave_block_th(MD_RTF* r)
 {
   RENDER_VERBATIM(r, "\\b0\\intbl\\cell ");
 }
 
+inline static void
+render_enter_block_p(MD_RTF* r)
+{
+  render_font_norm(r);
+}
 
+inline static void
+render_leave_block_p(MD_RTF* r)
+{
+  if(!r->no_p_end)
+    RENDER_VERBATIM(r, "\\par\r\n");
+}
 
 static void
 render_enter_span_url(MD_RTF* r, const MD_SPAN_A_DETAIL* a)
@@ -887,7 +900,7 @@ render_enter_span_url(MD_RTF* r, const MD_SPAN_A_DETAIL* a)
   RENDER_VERBATIM(r, "\"}{\\fldrslt ");
 }
 
-static void
+inline static void
 render_leave_span_url(MD_RTF* r)
 {
   RENDER_VERBATIM(r, "}}\\ul0 \\cf0 ");
@@ -915,7 +928,7 @@ enter_block_callback(MD_BLOCKTYPE type, void* detail, void* userdata)
       case MD_BLOCK_HR:       render_enter_block_hr(r); break;
       case MD_BLOCK_H:        render_enter_block_h(r, (const MD_BLOCK_H_DETAIL*)detail); break;
       case MD_BLOCK_CODE:     render_enter_block_code(r); break;
-      case MD_BLOCK_P:        render_font_norm(r); break;
+      case MD_BLOCK_P:        render_enter_block_p(r); break;
       case MD_BLOCK_HTML:     /* noop */ break;
       case MD_BLOCK_TABLE:    render_enter_block_table(r, (const MD_BLOCK_TABLE_DETAIL*)detail); break;
       case MD_BLOCK_THEAD:    render_enter_block_thead(r); break;
@@ -944,7 +957,7 @@ leave_block_callback(MD_BLOCKTYPE type, void* detail, void* userdata)
       case MD_BLOCK_HR:       /*noop*/ break;
       case MD_BLOCK_H:        render_leave_block_h(r, (const MD_BLOCK_H_DETAIL*)detail); break;
       case MD_BLOCK_CODE:     render_leave_block_code(r); break;
-      case MD_BLOCK_P:        if(!r->no_p_end) RENDER_VERBATIM(r, "\\par\r\n"); break;
+      case MD_BLOCK_P:        render_leave_block_p(r); break;
       case MD_BLOCK_HTML:     /* noop */ break;
       case MD_BLOCK_TABLE:    render_leave_block_table(r); break;
       case MD_BLOCK_THEAD:    render_leave_block_thead(r); break;
@@ -1102,10 +1115,10 @@ int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
 
   /* titles styles per level with font size and space-after values */
   sprintf(render.cw_hf[0], "\\fs%u\\sa%u\\b ", (unsigned)(2.2f*render.font_base), 2*render.font_base);
-  sprintf(render.cw_hf[1], "\\fs%u\\sa%u\\b\\i ", (unsigned)(1.8f*render.font_base), 2*render.font_base);
+  sprintf(render.cw_hf[1], "\\fs%u\\sa%u\\b ", (unsigned)(1.7f*render.font_base), 2*render.font_base);
   sprintf(render.cw_hf[2], "\\fs%u\\sa%u\\b ", (unsigned)(1.4f*render.font_base), 2*render.font_base);
   sprintf(render.cw_hf[3], "\\fs%u\\sa%u\\b\\i ", (unsigned)(1.2f*render.font_base), 2*render.font_base);
-  sprintf(render.cw_hf[4], "\\fs%u\\sa%u\\b ", (unsigned)(render.font_base), 2*render.font_base);
+  sprintf(render.cw_hf[4], "\\fs%u\\sa%u\\b\\i ", (unsigned)(1.1f*render.font_base), 2*render.font_base);
   sprintf(render.cw_hf[5], "\\fs%u\\sa%u\\b\\i ", (unsigned)(render.font_base), 2*render.font_base);
 
   /* space-after values */
