@@ -11,16 +11,15 @@ conventions and structure in respect to the original project.
 For more information about MD4C Parser please visit
 [MD4C Parser page](http://github.com/mity/md4c)
 
-# Feature
+# Features
 
 This rendrer is created for personal use to be part of another project and does
 not implement all features. Currently implemented feature are:
-- Usual emphasis, underline, bold and italic spans
+- Underline, bold, italic and code spans
 - Heading titles
 - Horizontal rule
 - Unordered list (up to 8 level nested)
 - Ordered list (up to 8 level nested)
-- Code span
 - Code block
 - Quote block
 - Tables
