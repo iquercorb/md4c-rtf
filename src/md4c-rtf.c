@@ -85,6 +85,23 @@ ultostr(long unsigned value, char *str, int base)
   return str;
 }
 
+/* special print to standard ouput for debug purposes */
+void printf_dbg(const char* str, size_t max)
+{
+  while(max--) {
+    switch(*str) {
+    case '\a': putc('\\', stdout); putc('a', stdout); str++; break;
+    case '\b': putc('\\', stdout); putc('b', stdout); str++; break;
+    case '\f': putc('\\', stdout); putc('f', stdout); str++; break;
+    case '\n': putc('\\', stdout); putc('n', stdout); str++; break;
+    case '\r': putc('\\', stdout); putc('r', stdout); str++; break;
+    case '\t': putc('\\', stdout); putc('t', stdout); str++; break;
+    case '\v': putc('\\', stdout); putc('v', stdout); str++; break;
+    case '\0': putc('\\', stdout); putc('0', stdout); str++; break;
+    default: putc(*str++, stdout); break;
+    }
+  }
+}
 
 typedef struct MD_RTF_list {
   unsigned        type;
@@ -126,7 +143,9 @@ typedef struct MD_RTF_tag {
   unsigned    tabl_cols;
   unsigned    tabl_head;
   /* do not end paragraph flag */
-  unsigned    no_p_end;
+  unsigned    quote_block;
+  /* block code must render LF flag */
+  unsigned    code_lf;
   /* RTF control words with prebuilt values */
   MD_CHAR     cw_fs[2][8];
   MD_CHAR     cw_hf[6][16];
@@ -253,19 +272,18 @@ render_entity(MD_RTF* r, const MD_CHAR* text, MD_SIZE size,
 
   } else {
     #ifdef MD4C_ENTITY_H
-
     /* Named entity (e.g. "&nbsp;"). */
-    /*
     const struct entity* ent;
 
     ent = entity_lookup(text, size);
     if(ent != NULL) {
-      render_utf8_codepoint(r, ent->codepoints[0], fn_append);
-      if(ent->codepoints[1])
-        render_utf8_codepoint(r, ent->codepoints[1], fn_append);
+
+      /* we do not support > 4 bytes unicode for now */
+      if(!ent->codepoints[1])
+        render_unicode(r, ent->codepoints[0]);
+
       return;
     }
-    */
     #endif
   }
 
@@ -379,6 +397,34 @@ render_rtf_escaped(MD_RTF* r, const MD_CHAR* data, MD_SIZE size)
   }
 }
 
+static void
+render_text_code(MD_RTF* r, const MD_CHAR* data, MD_SIZE size)
+{
+  /* due to how MD4C parser works, a last LF '\n' is always emitted as last
+  text block before leaving the code block which produce a visible empty line
+  at the end of block. To avoid this, we need to handle line feeds manually
+  inside the block code.
+
+  To do so, we skip each input '\n' then rather manually put a line feed at
+  start of the next text block. This way, the last received LF is never
+  rendered. */
+
+  /* if input data is LF we ignore it and simply set the flag make a line
+  feed at start of the next text input */
+  if(data[0] == '\n' && size == 1) {
+    r->code_lf = 1;
+    return;
+  }
+
+  /* previous input was LF, we now render the line feed */
+  if(r->code_lf) {
+    RENDER_VERBATIM(r, "\\line1");
+    r->code_lf = 0;
+  }
+
+  /* render input text as normal text */
+  render_rtf_escaped(r, data, size);
+}
 
 static void
 render_font_norm(MD_RTF* r)
@@ -407,10 +453,10 @@ render_end_block(MD_RTF* r)
   block such as list, quote or code, where space-after value is usually
   changed or disabled. */
 
-  /* reset with zero-sized font */
-  RENDER_VERBATIM(r, "\\pard\\f0\\fs0");
-  /* paragraph space-after value */
-  RENDER_VERBATIM(r, r->cw_sa[2]);
+  /* reset to normal font font but without space after */
+  RENDER_VERBATIM(r, "\\pard\\f0");
+  RENDER_VERBATIM(r, r->cw_fs[0]);
+
   /* end paragraph, notice that CRLF is here
   only for readability of source data */
   RENDER_VERBATIM(r, "\\par\r\n");
@@ -497,7 +543,7 @@ render_enter_block_doc(MD_RTF* r)
                           "\\red230\\green230\\blue230;"  /* silver */
                         "}"
                         /* additional informations */
-                        "{\\*\\generator MD4C-RTF}");
+                        "{\\*\\generator MD4C-RTF}\\viewkind5");
 
 
                         /* document parameters */
@@ -522,22 +568,24 @@ render_leave_block_doc(MD_RTF* r)
 static void
 render_enter_block_hr(MD_RTF* r)
 {
-  /* MS Rich Edit 4.1 handle table border in a very specific way, not defined
-  or invisible border are (forced) displayed in light gray.
+  /* RTF does not allow (in simple way) to display an horizontal rule, on the
+  other hand, Rich Edit 4.1 (WordPad and WinAPI Rich Edit control) does not
+  properly handle paragraph borders and displays table borders in its own
+  specific way.
 
-  To make borders invisible even with MS Rich Edit 4.1 we need to define a
-  minimum width of 1 (so it is considered visible) and to define a color the
-  same as background */
+  So, to display an horizontal rule equally on all viewer, we create a table
+  with the minimum size (font size defined to 0) with only the bottom border
+  visible. Other border are also visible but defined with the same color as
+  background, this way Rich Edit 4.1 don't display them in light gray. */
 
-  RENDER_VERBATIM(r, "\\pard\\fs0\\trowd\\trrh0\\trautofit1"
-                      "\\clbrdrt\\brdrs\\brdrw20\\brdrcf2"
-                      "\\clbrdrb\\brdrs\\brdrw1\\brdrcf3"   /* invisible border */
+  RENDER_VERBATIM(r, "\\pard\\f0\\fs0\\trowd\\trrh0\\trautofit1"
+                      "\\clbrdrt\\brdrs\\brdrw1\\brdrcf2"
+                      "\\clbrdrb\\brdrs\\brdrw1\\brdrcf3"
                       "\\clbrdrl\\brdrs\\brdrw1\\brdrcf2"   /* invisible border */
                       "\\clbrdrr\\brdrs\\brdrw1\\brdrcf2"); /* invisible border */
 
-
   RENDER_VERBATIM(r, r->cw_cx[1]); // \cellxN
-  RENDER_VERBATIM(r, "\\par\\cell\\row");
+  RENDER_VERBATIM(r, "\\cell\\row");
 
   /* create proper space after paragraph */
   render_end_block(r);
@@ -565,6 +613,7 @@ render_enter_block_quote(MD_RTF* r)
   /* reset paragraph to normal font style */
   RENDER_VERBATIM(r, "\\pard\\f0");
   RENDER_VERBATIM(r, r->cw_fs[0]);
+
   /* start table row with proper parameters */
   RENDER_VERBATIM(r, "\\trowd");
   RENDER_VERBATIM(r, r->cw_tr[0]);
@@ -579,21 +628,20 @@ render_enter_block_quote(MD_RTF* r)
   autofit so we must define static cell size according defined page width */
   RENDER_VERBATIM(r, r->cw_cx[0]); // \cellxN
 
-  /* prevent to emit a \par at end of paragraph to avoid
-  extra line feed within the table */
-  r->no_p_end = 1;
+  /* prevent space-after and line feed at end of paragraph */
+  r->quote_block = 1;
 }
 
 static void
 render_leave_block_quote(MD_RTF* r)
 {
-  RENDER_VERBATIM(r, "\\cell\\row");
+  RENDER_VERBATIM(r, "\\intbl\\cell\\row");
 
   /* create proper space after paragraph */
   render_end_block(r);
 
-  /* we can now emit \par at end of paragraph */
-  r->no_p_end = 0;
+  /* we can now treat paragraphs normally */
+  r->quote_block = 0;
 }
 
 static void
@@ -606,32 +654,25 @@ render_enter_block_code(MD_RTF* r)
   RENDER_VERBATIM(r, "\\trowd");
   RENDER_VERBATIM(r, r->cw_tr[0]);
 
-  /* quote is enclosed in an invisible table */
-  RENDER_VERBATIM(r,  "\\clbrdrt\\brdrs\\brdrw1\\brdrcf2"   /* invisible border */
-                      "\\clbrdrb\\brdrs\\brdrw1\\brdrcf2"   /* invisible border */
+  /* code is enclosed in an invisible table */
+  RENDER_VERBATIM(r,  "\\clbrdrt\\brdrs\\brdrw1\\brdrcf2"  /* invisible border */
+                      "\\clbrdrb\\brdrs\\brdrw1\\brdrcf2"  /* invisible border */
                       "\\clbrdrl\\brdrs\\brdrw1\\brdrcf2"
-                      "\\clbrdrr\\brdrs\\brdrw1\\brdrcf2"); /* invisible border */
+                      "\\clbrdrr\\brdrs\\brdrw1\\brdrcf2"  /* invisible border */
+                      "\\clcbpat5");  /* background color */
 
   /* set cell width, unfortunately basic RTF viewer does not handle
   autofit so we must define static cell size according defined page width */
   RENDER_VERBATIM(r, r->cw_cx[0]); // \cellxN
-
-  /* prevent to emit a \par at end of paragraph to avoid
-  extra line feed within the table */
-  r->no_p_end = 1;
 }
 
 static void
 render_leave_block_code(MD_RTF* r)
 {
-  /* space after block is always done due to last \n of its
-  content we simply switch back to default font */
-  RENDER_VERBATIM(r, "\\cell\\row\\pard\\f0");
-  /* set proper space-after parameter for next paragraphs */
-  RENDER_VERBATIM(r, r->cw_sa[2]);
+  RENDER_VERBATIM(r, "\\cell\\row");
 
-  /* we can now emit \par at end of paragraph */
-  r->no_p_end = 0;
+  /* create proper space after paragraph */
+  render_end_block(r);
 }
 
 static void
@@ -739,8 +780,7 @@ render_enter_block_li(MD_RTF* r, const MD_BLOCK_LI_DETAIL* li)
   /* increment item count */
   r->list[r->list_depth].count++;
 
-  /* item started must be stopped, see
-  render_leave_block_li() for explanation */
+  /* item started must be stopped, see also render_leave_block_li() */
   r->list_stop = 1;
 }
 
@@ -812,7 +852,7 @@ render_enter_block_tr(MD_RTF* r)
   RENDER_VERBATIM(r, r->cw_tr[1]);
 
   /* 9000 seem to be the average width of an RTF document */
-  float tw = r->page_width - (2*r->page_margin) - (0.2f*r->page_width);
+  float tw = r->page_width - (2*r->page_margin) - (0.1f*r->page_width);
   unsigned cw = tw / r->tabl_cols;
 
   /* we must first declare cells with their respecting properties */
@@ -880,13 +920,19 @@ render_leave_block_th(MD_RTF* r)
 static inline void
 render_enter_block_p(MD_RTF* r)
 {
+  /* use normal font */
   render_font_norm(r);
+
+  /* set proper space-after except if we are inside quote block */
+  if(!r->quote_block)
+    RENDER_VERBATIM(r, r->cw_sa[2]);
 }
 
 static inline void
 render_leave_block_p(MD_RTF* r)
 {
-  if(!r->no_p_end)
+  /* end paragraph except if we are inside quote block */
+  if(!r->quote_block)
     RENDER_VERBATIM(r, "\\par\r\n");
 }
 
@@ -903,6 +949,20 @@ render_leave_span_url(MD_RTF* r)
 {
   RENDER_VERBATIM(r, "}}\\ul0 \\cf0 ");
 }
+
+static inline void
+render_enter_span_code(MD_RTF* r)
+{
+  render_font_mono(r);
+}
+
+static inline void
+render_leave_span_code(MD_RTF* r)
+{
+  render_font_norm(r);
+}
+
+
 
 
 
@@ -975,7 +1035,7 @@ enter_span_callback(MD_SPANTYPE type, void* detail, void* userdata)
       case MD_SPAN_U:                 RENDER_VERBATIM(r, "\\ul "); break;
       case MD_SPAN_DEL:               RENDER_VERBATIM(r, "\\strike "); break;
       case MD_SPAN_A:                 render_enter_span_url(r, (MD_SPAN_A_DETAIL*) detail); break;
-      case MD_SPAN_CODE:              render_font_mono(r); break;
+      case MD_SPAN_CODE:              render_enter_span_code(r); break;
       //case MD_SPAN_IMG:               render_open_img_span(r, (MD_SPAN_IMG_DETAIL*) detail); break;
       //case MD_SPAN_LATEXMATH:         RENDER_VERBATIM(r, "<x-equation>"); break;
       //case MD_SPAN_LATEXMATH_DISPLAY: RENDER_VERBATIM(r, "<x-equation type=\"display\">"); break;
@@ -996,7 +1056,7 @@ leave_span_callback(MD_SPANTYPE type, void* detail, void* userdata)
       case MD_SPAN_U:                 RENDER_VERBATIM(r, "\\ul0 "); break;
       case MD_SPAN_DEL:               RENDER_VERBATIM(r, "\\strike0 "); break;
       case MD_SPAN_A:                 render_leave_span_url(r); break;
-      case MD_SPAN_CODE:              render_font_norm(r); break;
+      case MD_SPAN_CODE:              render_leave_span_code(r); break;
       //case MD_SPAN_IMG:               /*noop, handled above*/ break;
       //case MD_SPAN_LATEXMATH:         /*fall through*/
       //case MD_SPAN_LATEXMATH_DISPLAY: RENDER_VERBATIM(r, "</x-equation>"); break;
@@ -1015,9 +1075,11 @@ text_callback(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdat
   switch(type) {
       case MD_TEXT_NULLCHAR:  RENDER_VERBATIM(r, "\0"); break;
       case MD_TEXT_BR:        RENDER_VERBATIM(r, "\\line1"); break;
-      case MD_TEXT_SOFTBR:    RENDER_VERBATIM(r, "\r\n"); break;
+      case MD_TEXT_SOFTBR:    RENDER_VERBATIM(r, " "); break;
+      case MD_TEXT_CODE:      render_text_code(r, text, size); break;
       case MD_TEXT_HTML:      render_rtf_escaped(r, text, size); break;
       case MD_TEXT_ENTITY:    render_entity(r, text, size, render_rtf_escaped); break;
+      case MD_TEXT_LATEXMATH:
       default:                render_rtf_escaped(r, text, size); break;
   }
 
@@ -1049,7 +1111,8 @@ int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
   render.list_depth = -1;
   render.list_stop = 0;
   render.list_reset = 0;
-  render.no_p_end = 0;
+  render.code_lf = 0;
+  render.quote_block = 0;
 
 
   MD_PARSER parser = {
@@ -1126,7 +1189,7 @@ int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
 
   /* tables basic parameter and left margin */
   unsigned l = 12*render.font_base;
-  sprintf(render.cw_tr[0], "\\trgaph%u\\trleft%u", 6*render.font_base, l);
+  sprintf(render.cw_tr[0], "\\trautofit1\\trgaph%u\\trleft%u", 6*render.font_base, l);
   sprintf(render.cw_tr[1], "\\trgaph%u\\trrh%u\\trleft%u", 3*render.font_base, 16*render.font_base, l);
 
   /* frist-line indent values, used for bulleted and numbered lists */
@@ -1134,7 +1197,7 @@ int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
   sprintf(render.cw_fi[1], "\\fi%i", -12*render.font_base);
 
   /* table cell width adjusted to given page width */
-  unsigned w = render.page_width - (2*render.page_margin) - (0.2f*render.page_width);
+  unsigned w = render.page_width - (2*render.page_margin) - (0.1f*render.page_width);
   sprintf(render.cw_cx[0], "\\cellx%u ", w );
   sprintf(render.cw_cx[1], "\\cellx%u ", render.page_width * 2 );
 
