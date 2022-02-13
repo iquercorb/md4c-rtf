@@ -43,13 +43,16 @@
     extern "C" {
 #endif
 
+typedef unsigned char MD_RTF_DATA;
+typedef char MD_RTF_CHAR;
+
 /* If set, debug output from md_parse() is sent to stderr. */
 #define MD_RTF_FLAG_DEBUG                   0x0001
 #define MD_RTF_FLAG_VERBATIM_ENTITIES       0x0002
 #define MD_RTF_FLAG_SKIP_UTF8_BOM           0x0004
 
 int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
-            void (*process_output)(const MD_CHAR*, MD_SIZE, void*),
+            void (*process_output)(const MD_RTF_DATA*, MD_SIZE, void*),
             void* userdata, unsigned parser_flags, unsigned renderer_flags,
             unsigned font_size, unsigned doc_width);
 

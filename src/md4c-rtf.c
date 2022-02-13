@@ -103,31 +103,32 @@ void printf_dbg(const char* str, size_t max)
   }
 }
 
+
 typedef struct MD_RTF_list {
-  unsigned        type;
-  unsigned        count;
-  unsigned        start;
-  const MD_CHAR*  cw_tx;
-  const MD_CHAR*  cw_li;
-  const MD_CHAR*  cw_sa;
+  unsigned            type;
+  unsigned            count;
+  unsigned            start;
+  const MD_RTF_CHAR*  cw_tx;
+  const MD_RTF_CHAR*  cw_li;
+  const MD_RTF_CHAR*  cw_sa;
 } MD_RTF_LIST;
 
 #define MD_RTF_LIST_TYPE_UL   0x0
 #define MD_RTF_LIST_TYPE_OL   0x1
 
-static const MD_CHAR* g_cw_list_bullt[2] = {
+static const MD_RTF_CHAR* g_cw_list_bullt[2] = {
   "\\u8226 ",
   "\\u9702 "};
 
-static const MD_CHAR* g_cw_list_delim[2] = {
+static const MD_RTF_CHAR* g_cw_list_delim[2] = {
   ".",
   ")"};
 
 typedef struct MD_RTF_tag {
-  void (*process_output)(const MD_CHAR*, MD_SIZE, void*);
-  void* userdata;
-  unsigned flags;
-  char escape_map[256];
+  void        (*process_output)(const MD_RTF_DATA*, MD_SIZE, void*);
+  void*       userdata;
+  unsigned    flags;
+  char        escape_map[256];
   /* RTF document page sizes (twip) */
   unsigned    page_width;
   unsigned    page_height;
@@ -147,13 +148,13 @@ typedef struct MD_RTF_tag {
   /* block code must render LF flag */
   unsigned    code_lf;
   /* RTF control words with prebuilt values */
-  MD_CHAR     cw_fs[2][8];
-  MD_CHAR     cw_hf[6][16];
-  MD_CHAR     cw_sa[3][16];
-  MD_CHAR     cw_li[8][16];
-  MD_CHAR     cw_tr[2][32];
-  MD_CHAR     cw_fi[2][16];
-  MD_CHAR     cw_cx[2][16];
+  MD_RTF_CHAR cw_fs[2][8];
+  MD_RTF_CHAR cw_hf[6][16];
+  MD_RTF_CHAR cw_sa[3][16];
+  MD_RTF_CHAR cw_li[8][16];
+  MD_RTF_CHAR cw_tr[2][32];
+  MD_RTF_CHAR cw_fi[2][16];
+  MD_RTF_CHAR cw_cx[2][16];
 } MD_RTF;
 
 #define NEED_RTF_ESC_FLAG   0x1
@@ -169,10 +170,33 @@ typedef struct MD_RTF_tag {
 #define ISUPPER(ch)     ('A' <= (ch) && (ch) <= 'Z')
 #define ISALNUM(ch)     (ISLOWER(ch) || ISUPPER(ch) || ISDIGIT(ch))
 
-static inline void
-render_verbatim(MD_RTF* r, const MD_CHAR* text, MD_SIZE size)
+#ifdef MD4C_USE_UTF16
+/* Function to convert WCHAR to UTF8 string then forward result to the
+specified render functions */
+static void
+render_wchar(MD_RTF* r, const wchar_t* text, MD_SIZE size,
+              void (*fn_forward)(MD_RTF*, const MD_RTF_CHAR*, MD_SIZE))
 {
-  r->process_output(text, size, r->userdata);
+  char utf8[6144];
+  unsigned utf8_size;
+
+  while(size > 2048) {
+    utf8_size = WideCharToMultiByte(CP_UTF8, 0, text, 2048, utf8, 6144, NULL, NULL);
+    fn_forward(r, utf8, utf8_size);
+    text += 2048;
+    size -= 2048;
+  }
+
+  utf8_size = WideCharToMultiByte(CP_UTF8, 0, text, size, utf8, 6144, NULL, NULL);
+  fn_forward(r, utf8, utf8_size);
+}
+#endif
+
+
+static inline void
+render_verbatim(MD_RTF* r, const MD_RTF_CHAR* text, MD_SIZE size)
+{
+  r->process_output((MD_RTF_DATA*)text, size, r->userdata);
 }
 
 /* Keep this as a macro. Most compiler should then be smart enough to replace
@@ -182,9 +206,9 @@ render_verbatim(MD_RTF* r, const MD_CHAR* text, MD_SIZE size)
 
 
 static void
-render_url_escaped(MD_RTF* r, const MD_CHAR* data, MD_SIZE size)
+render_url_escaped(MD_RTF* r, const MD_RTF_CHAR* data, MD_SIZE size)
 {
-  static const MD_CHAR hex_chars[] = "0123456789ABCDEF";
+  static const MD_RTF_CHAR hex_chars[] = "0123456789ABCDEF";
   MD_OFFSET beg = 0;
   MD_OFFSET off = 0;
 
@@ -229,7 +253,7 @@ render_url_escaped(MD_RTF* r, const MD_CHAR* data, MD_SIZE size)
 static inline void
 render_unicode(MD_RTF* r, unsigned u)
 {
-  MD_CHAR str_ucp[16];
+  MD_RTF_CHAR str_ucp[16];
   RENDER_VERBATIM(r, "\\u");
   RENDER_VERBATIM(r, ultostr(u, str_ucp, 10));
 }
@@ -238,61 +262,13 @@ render_unicode(MD_RTF* r, unsigned u)
 static inline void
 render_cp1252(MD_RTF* r, unsigned u)
 {
-  MD_CHAR str_acp[16];
+  MD_RTF_CHAR str_acp[16];
   RENDER_VERBATIM(r, "\\'");
   RENDER_VERBATIM(r, ultostr(u, str_acp, 16));
 }
 
-
-/* Translate entity to its UTF-8 equivalent, or output the verbatim one
- * if such entity is unknown (or if the translation is disabled). */
-static void
-render_entity(MD_RTF* r, const MD_CHAR* text, MD_SIZE size,
-              void (*fn_append)(MD_RTF*, const MD_CHAR*, MD_SIZE))
-{
-  if(r->flags & MD_RTF_FLAG_VERBATIM_ENTITIES) {
-    render_verbatim(r, text, size);
-    return;
-  }
-
-  /* We assume Unicode output is what is desired. */
-  if(size > 3 && text[1] == '#') {
-
-    unsigned u = 0;
-
-    if(text[2] == 'x' || text[2] == 'X') {
-      u = strtoul(text + 3, NULL, 16);
-    } else {
-      u = strtoul(text + 2, NULL, 10);
-    }
-
-    render_unicode(r, u);
-
-    return;
-
-  } else {
-    #ifdef MD4C_ENTITY_H
-    /* Named entity (e.g. "&nbsp;"). */
-    const struct entity* ent;
-
-    ent = entity_lookup(text, size);
-    if(ent != NULL) {
-
-      /* we do not support > 4 bytes unicode for now */
-      if(!ent->codepoints[1])
-        render_unicode(r, ent->codepoints[0]);
-
-      return;
-    }
-    #endif
-  }
-
-  fn_append(r, text, size);
-}
-
-
 static unsigned
-render_non_ascii(MD_RTF* r, const unsigned char* s, unsigned size)
+render_non_ascii(MD_RTF* r, const unsigned char* c, unsigned size)
 {
   unsigned u = 0;
   unsigned b = 0;
@@ -305,30 +281,30 @@ render_non_ascii(MD_RTF* r, const unsigned char* s, unsigned size)
                             (((a)[3] & 0xC0) == 0x80) && \
 
   /* validate and decode UTF-8 */
-  if((s[0] & 0xE0) == 0xC0) { /* 110X XXXX : 2 octets */
+  if((c[0] & 0xE0) == 0xC0) { /* 110X XXXX : 2 octets */
     if(size > 1) { /* need one more octet */
-      if(IS_UTF8_2BYTES(s)) {
-        u = (s[0] & 0x1F) <<  6 |
-            (s[1] & 0x3F);
+      if(IS_UTF8_2BYTES(c)) {
+        u = (c[0] & 0x1F) <<  6 |
+            (c[1] & 0x3F);
         b = 2; /* skip 2 byte */
       }
     }
-  } else if((s[0] & 0xF0) == 0xE0) { /* 1110 XXXX : 3 octets */
+  } else if((c[0] & 0xF0) == 0xE0) { /* 1110 XXXX : 3 octets */
     if(size > 2) { /* need 2 more octets */
-      if(IS_UTF8_3BYTES(s)) {
-        u = (s[0] & 0x0F) << 12 |
-            (s[1] & 0x3F) <<  6 |
-            (s[2] & 0x3F);
+      if(IS_UTF8_3BYTES(c)) {
+        u = (c[0] & 0x0F) << 12 |
+            (c[1] & 0x3F) <<  6 |
+            (c[2] & 0x3F);
         b = 3; /* skip 3 byte */
       }
     }
-  } else if((s[0] & 0xF8) == 0xF0) { /* 1111 0XXX : 4 octets */
+  } else if((c[0] & 0xF8) == 0xF0) { /* 1111 0XXX : 4 octets */
     if(size > 3) { /* need 3 more octets */
-      if(IS_UTF8_2BYTES(s)) {
-        u = (s[0] & 0x07) << 18 |
-            (s[1] & 0x3F) << 12 |
-            (s[2] & 0x3F) <<  6 |
-            (s[3] & 0x3F);
+      if(IS_UTF8_2BYTES(c)) {
+        u = (c[0] & 0x07) << 18 |
+            (c[1] & 0x3F) << 12 |
+            (c[2] & 0x3F) <<  6 |
+            (c[3] & 0x3F);
         b = 4; /* skip 4 byte */
       }
     }
@@ -344,7 +320,7 @@ render_non_ascii(MD_RTF* r, const unsigned char* s, unsigned size)
     /* if we don't got a valid Unicode codepoint we assume an AINSI CP1252
     encoding. We translate it to RTF using old standard escaping for 8-bit
     non ASCII characters. */
-    render_cp1252(r, *s);
+    render_cp1252(r, *c);
 
     return 1; /* skip 1 byte */
   }
@@ -353,7 +329,7 @@ render_non_ascii(MD_RTF* r, const unsigned char* s, unsigned size)
 }
 
 static void
-render_rtf_escaped(MD_RTF* r, const MD_CHAR* data, MD_SIZE size)
+render_rtf_escaped(MD_RTF* r, const MD_RTF_CHAR* data, MD_SIZE size)
 {
   MD_OFFSET beg = 0;
   MD_OFFSET off = 0;
@@ -398,7 +374,7 @@ render_rtf_escaped(MD_RTF* r, const MD_CHAR* data, MD_SIZE size)
 }
 
 static void
-render_text_code(MD_RTF* r, const MD_CHAR* data, MD_SIZE size)
+render_text_code(MD_RTF* r, const MD_RTF_CHAR* data, MD_SIZE size)
 {
   /* due to how MD4C parser works, a last LF '\n' is always emitted as last
   text block before leaving the code block which produce a visible empty line
@@ -425,6 +401,53 @@ render_text_code(MD_RTF* r, const MD_CHAR* data, MD_SIZE size)
   /* render input text as normal text */
   render_rtf_escaped(r, data, size);
 }
+
+
+/* Translate entity to its UTF-8 equivalent, or output the verbatim one
+ * if such entity is unknown (or if the translation is disabled). */
+static void
+render_entity(MD_RTF* r, const MD_RTF_CHAR* text, MD_SIZE size)
+{
+  if(r->flags & MD_RTF_FLAG_VERBATIM_ENTITIES) {
+    render_verbatim(r, text, size);
+    return;
+  }
+
+  /* We assume Unicode output is what is desired. */
+  if(size > 3 && text[1] == '#') {
+
+    unsigned u = 0;
+
+    if(text[2] == 'x' || text[2] == 'X') {
+      u = strtoul(text + 3, NULL, 16);
+    } else {
+      u = strtoul(text + 2, NULL, 10);
+    }
+
+    render_unicode(r, u);
+
+    return;
+
+  } else {
+    #ifdef MD4C_ENTITY_H
+    /* Named entity (e.g. "&nbsp;"). */
+    const struct entity* ent;
+
+    ent = entity_lookup(text, size);
+    if(ent != NULL) {
+
+      /* we do not support > 4 bytes unicode for now */
+      if(!ent->codepoints[1])
+        render_unicode(r, ent->codepoints[0]);
+
+      return;
+    }
+    #endif
+  }
+
+  render_rtf_escaped(r, text, size);
+}
+
 
 static void
 render_font_norm(MD_RTF* r)
@@ -465,7 +488,7 @@ render_end_block(MD_RTF* r)
 static inline void
 render_list_start(MD_RTF* r)
 {
-  MD_CHAR str_num[16];
+  MD_RTF_CHAR str_num[16];
 
   unsigned d = r->list_depth;
 
@@ -506,7 +529,7 @@ render_list_start(MD_RTF* r)
 static inline void
 render_list_item(MD_RTF* r)
 {
-  MD_CHAR str_num[16];
+  MD_RTF_CHAR str_num[16];
 
   unsigned d = r->list_depth;
 
@@ -525,7 +548,7 @@ render_list_item(MD_RTF* r)
 static void
 render_enter_block_doc(MD_RTF* r)
 {
-  MD_CHAR str_page[512];
+  MD_RTF_CHAR str_page[512];
 
   RENDER_VERBATIM(r,  "{\\rtf1\\ansi\\ansicpg1252\\deff0"
                         /* font table */
@@ -845,7 +868,7 @@ render_leave_block_thead(MD_RTF* r)
 static void
 render_enter_block_tr(MD_RTF* r)
 {
-  MD_CHAR str_num[16];
+  MD_RTF_CHAR str_num[16];
 
   /* create new raw with proper parameters */
   RENDER_VERBATIM(r, "\\trowd");
@@ -940,7 +963,11 @@ static void
 render_enter_span_url(MD_RTF* r, const MD_SPAN_A_DETAIL* a)
 {
   RENDER_VERBATIM(r, "\\cf4\\ul {\\field{\\*\\fldinst HYPERLINK \"");
+  #ifdef MD4C_USE_UTF16
+  render_wchar(r, a->href.text, a->href.size, render_url_escaped);
+  #else
   render_url_escaped(r, a->href.text, a->href.size);
+  #endif
   RENDER_VERBATIM(r, "\"}{\\fldrslt ");
 }
 
@@ -1066,7 +1093,7 @@ leave_span_callback(MD_SPANTYPE type, void* detail, void* userdata)
   return 0;
 }
 
-
+#ifdef MD4C_USE_UTF16
 static int
 text_callback(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdata)
 {
@@ -1076,15 +1103,30 @@ text_callback(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdat
       case MD_TEXT_NULLCHAR:  RENDER_VERBATIM(r, "\0"); break;
       case MD_TEXT_BR:        RENDER_VERBATIM(r, "\\line1"); break;
       case MD_TEXT_SOFTBR:    RENDER_VERBATIM(r, " "); break;
-      case MD_TEXT_CODE:      render_text_code(r, text, size); break;
-      case MD_TEXT_HTML:      render_rtf_escaped(r, text, size); break;
-      case MD_TEXT_ENTITY:    render_entity(r, text, size, render_rtf_escaped); break;
-      case MD_TEXT_LATEXMATH:
-      default:                render_rtf_escaped(r, text, size); break;
+      case MD_TEXT_CODE:      render_wchar(r, text, size, render_text_code); break;
+      case MD_TEXT_HTML:      render_wchar(r, text, size, render_rtf_escaped); break;
+      case MD_TEXT_ENTITY:    render_wchar(r, text, size, render_entity); break;
+      default:                render_wchar(r, text, size, render_rtf_escaped); break;
   }
-
   return 0;
 }
+#else
+static int
+text_callback(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdata)
+{
+  MD_RTF* r = (MD_RTF*) userdata;
+  switch(type) {
+      case MD_TEXT_NULLCHAR:  RENDER_VERBATIM(r, "\0"); break;
+      case MD_TEXT_BR:        RENDER_VERBATIM(r, "\\line1"); break;
+      case MD_TEXT_SOFTBR:    RENDER_VERBATIM(r, " "); break;
+      case MD_TEXT_CODE:      render_text_code(r, text, size); break;
+      case MD_TEXT_HTML:      render_rtf_escaped(r, text, size); break;
+      case MD_TEXT_ENTITY:    render_entity(r, text, size); break;
+      default:                render_rtf_escaped(r, text, size); break;
+  }
+  return 0;
+}
+#endif
 
 static void
 debug_log_callback(const char* msg, void* userdata)
@@ -1096,7 +1138,7 @@ debug_log_callback(const char* msg, void* userdata)
 
 
 int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
-            void (*process_output)(const MD_CHAR*, MD_SIZE, void*),
+            void (*process_output)(const MD_RTF_DATA*, MD_SIZE, void*),
             void* userdata, unsigned parser_flags, unsigned renderer_flags,
             unsigned font_size, unsigned doc_width)
 {
@@ -1113,7 +1155,6 @@ int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
   render.list_reset = 0;
   render.code_lf = 0;
   render.quote_block = 0;
-
 
   MD_PARSER parser = {
       0,
@@ -1201,5 +1242,7 @@ int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
   sprintf(render.cw_cx[0], "\\cellx%u ", w );
   sprintf(render.cw_cx[1], "\\cellx%u ", render.page_width * 2 );
 
-  return md_parse(input, input_size, &parser, (void*)&render);
+  int result = md_parse(input, input_size, &parser, (void*)&render);
+
+  return result;
 }
