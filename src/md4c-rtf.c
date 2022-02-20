@@ -771,6 +771,9 @@ render_leave_block_ul(MD_RTF* r)
     render_verbatim(r, "\\par", 4);
     /* all ended, create proper space after paragraph */
     render_end_block(r);
+    /* properly reset parameters */
+    r->list_para = 0;
+    r->list_rset = 0;
   }
 
   /* decrement depth */
@@ -832,6 +835,9 @@ render_leave_block_ol(MD_RTF* r)
     render_verbatim(r, "\\par", 4);
     /* all ended, create proper space after paragraph */
     render_end_block(r);
+    /* properly reset parameters */
+    r->list_para = 0;
+    r->list_rset = 0;
   }
 
   /* decrement depth */
@@ -1038,7 +1044,7 @@ render_leave_block_p(MD_RTF* r)
     return;
 
   /* standard end of paragraph */
-  render_verbatim(r, "\\par\\line1\r\n", 12);
+  render_verbatim(r, "\\line1\\par\r\n", 12);
 }
 
 static void
@@ -1179,8 +1185,11 @@ leave_span_callback(MD_SPANTYPE type, void* detail, void* userdata)
 static int
 text_callback(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdata)
 {
+  MD_RTF* r = (MD_RTF*) userdata;
+
   #ifdef _DEBUG
-  printf("text_callback type=");
+  for(int i = 0; i < (r->list_dpth*2); ++i) putchar(' ');
+  printf("text_callback ");
   switch(type) {
     case MD_TEXT_NULLCHAR: printf("MD_TEXT_NULLCHAR\n"); break;
     case MD_TEXT_BR:  printf("MD_TEXT_BR\n"); break;
@@ -1188,11 +1197,9 @@ text_callback(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdat
     case MD_TEXT_CODE: printf("MD_TEXT_CODE\n"); break;
     case MD_TEXT_HTML:  printf("MD_TEXT_HTML\n"); break;
     case MD_TEXT_ENTITY: printf("MD_TEXT_ENTITY\n"); break;
-    default: printf("default\n"); break;
+    default: printf("NORMAL\n"); break;
   }
   #endif
-
-  MD_RTF* r = (MD_RTF*) userdata;
 
   switch(type) {
       case MD_TEXT_NULLCHAR:  render_verbatim(r, "\0", 1); break;
@@ -1209,8 +1216,11 @@ text_callback(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdat
 static int
 text_callback(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdata)
 {
+  MD_RTF* r = (MD_RTF*) userdata;
+
   #ifdef _DEBUG
-  printf("text_callback type=");
+  for(int i = 0; i < (r->list_dpth*2); ++i) putchar(' ');
+  printf("text_callback ");
   switch(type) {
     case MD_TEXT_NULLCHAR: printf("MD_TEXT_NULLCHAR\n"); break;
     case MD_TEXT_BR:  printf("MD_TEXT_BR\n"); break;
@@ -1218,11 +1228,9 @@ text_callback(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdat
     case MD_TEXT_CODE: printf("MD_TEXT_CODE\n"); break;
     case MD_TEXT_HTML:  printf("MD_TEXT_HTML\n"); break;
     case MD_TEXT_ENTITY: printf("MD_TEXT_ENTITY\n"); break;
-    default: printf("default\n"); break;
+    default: printf("NORMAL\n"); break;
   }
   #endif
-
-  MD_RTF* r = (MD_RTF*) userdata;
 
   switch(type) {
       case MD_TEXT_NULLCHAR:  render_verbatim(r, "\0", 1); break;
@@ -1316,12 +1324,12 @@ int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
   sprintf(render.cw_fs[1], "\\fs%u", (unsigned)(0.9f*render.font_base) );
 
   /* titles styles per level with font size and space-after values */
-  sprintf(render.cw_hf[0], "\\fs%u\\sa%u\\b ", (unsigned)(2.2f*render.font_base), 6*render.font_base);
-  sprintf(render.cw_hf[1], "\\fs%u\\sa%u\\b ", (unsigned)(1.7f*render.font_base), 6*render.font_base);
-  sprintf(render.cw_hf[2], "\\fs%u\\sa%u\\b ", (unsigned)(1.4f*render.font_base), 6*render.font_base);
+  sprintf(render.cw_hf[0], "\\fs%u\\sa%u\\b ", (unsigned)(2.2f*render.font_base), 8*render.font_base);
+  sprintf(render.cw_hf[1], "\\fs%u\\sa%u\\b ", (unsigned)(1.7f*render.font_base), 8*render.font_base);
+  sprintf(render.cw_hf[2], "\\fs%u\\sa%u\\b ", (unsigned)(1.4f*render.font_base), 8*render.font_base);
   sprintf(render.cw_hf[3], "\\fs%u\\sa%u\\b\\i ", (unsigned)(1.2f*render.font_base), 6*render.font_base);
-  sprintf(render.cw_hf[4], "\\fs%u\\sa%u\\b\\i ", (unsigned)(1.1f*render.font_base), 5*render.font_base);
-  sprintf(render.cw_hf[5], "\\fs%u\\sa%u\\b\\i ", (unsigned)(render.font_base), 5*render.font_base);
+  sprintf(render.cw_hf[4], "\\fs%u\\sa%u\\b\\i ", (unsigned)(1.1f*render.font_base), 6*render.font_base);
+  sprintf(render.cw_hf[5], "\\fs%u\\sa%u\\b\\i ", (unsigned)(render.font_base), 6*render.font_base);
 
   /* space-before values */
   sprintf(render.cw_sb[0], "\\sb%u ", 0*render.font_base);
