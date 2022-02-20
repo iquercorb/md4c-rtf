@@ -623,11 +623,11 @@ render_enter_block_hr(MD_RTF* r)
   visible. Other border are also visible but defined with the same color as
   background, this way Rich Edit 4.1 don't display them in light gray. */
 
-  render_verbatim(r, "\\pard\\f0\\fs0\\trowd\\trrh0\\trautofit1" //< 35 bytes
+  render_verbatim(r, "\\pard\\f0\\fs0\\trowd\\trrh-0\\trautofit1" //< 35 bytes
                       "\\clbrdrt\\brdrs\\brdrw1\\brdrcf2" //< 29 bytes
                       "\\clbrdrb\\brdrs\\brdrw1\\brdrcf3"
                       "\\clbrdrl\\brdrs\\brdrw1\\brdrcf2"   /* invisible border */
-                      "\\clbrdrr\\brdrs\\brdrw1\\brdrcf2", 151); /* invisible border */
+                      "\\clbrdrr\\brdrs\\brdrw1\\brdrcf2", 152); /* invisible border */
 
   RENDER_VERBATIM(r, r->cw_cx[1]); // \cellxN
   render_verbatim(r, "\\cell\\row", 9);
@@ -1301,7 +1301,7 @@ int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
   }
 
   /* Consider skipping UTF-8 byte order mark (BOM). */
-  if(renderer_flags & MD_RTF_FLAG_SKIP_UTF8_BOM  &&  sizeof(MD_CHAR) == 1) {
+  if(renderer_flags & MD_RTF_FLAG_SKIP_UTF8_BOM && sizeof(MD_CHAR) == 1) {
 
     static const MD_CHAR bom[3] = { 0xef, 0xbb, 0xbf };
 
