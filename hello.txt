@@ -1,0 +1,100 @@
+# Hello world !
+____________________________________________________________________________________
+    
+Lôrem ipsum dolor *sit amet*, consectetur adipiscing elït. Aenean séd mi blandit, 
+faucibus _enim eù_, laoreet libero. **Cras mollis** scelerisque erös vel porttitor.  
+ 
+Donec euismod non **odio non ultrices**. Sed neque nisi, auctor id porta id, placerat 
+nec ex. Vestibulum sèd vulputate nisi, àc auçtor est. In hac **habitasse platea 
+dictumst**. Sed vitae massa non *libero imperdiet* ultrices. Phasellus eleifend 
+pulvinar aùgue sed dignissim. _Phasellus pellentesque_ id lectus sed égestàs. 
+
+###### Heading title level 6
+##### Heading title level 5
+#### Heading title level 4
+### Heading title level 3
+## Heading title level 2
+# Heading title level 1
+
+Here is test of incerting unicode via entity in hexadecimal format &#x1f600; 
+then, another in decimal format &#128512;.
+
+This is a simple link without MD syntax http://www.perdu.com and here is a 
+[link with MD syntax](https://daringfireball.net/projects/markdown/syntax "Daringfireball")
+
+Now here is demonstration of code span `printf()` followed by a code block:
+
+	if(block == code) {
+		
+		fontname = "Courier New";
+			fontsize = 0.9 em;
+		
+		return -1;
+	}
+
+We then want to try some quote block as well:
+
+> Proin ullamcorper lacus tortor, et éuismod urna sodales ut. Fusce id 
+libero accumsan, fringilla est id, hendrerit diam. Alîquam in interdum 
+tortor, et pulvinar eros.  
+> Suspendisse sit amet ultricies tellus. Etiam 
+tristique ullamcorper auctor. Sed imperdiet a nulla sed lacinia. 
+Etiam varius risus ut enim lacinia egestas.
+
+Now here is a simple table with header row:
+
+| Syntax      | Description |
+| ----------- | ----------- |
+| Header      | Title       |
+| Paragraph   | Text        |
+
+
+* Praesent in dapibus mi
+* Aliquam finibus semper ligula
+	* Vestibulum consequat
+	* Nunc eleifend viverra
+		* Morbi fermentum efficitur
+* Praesent ultricies sapien pharetra
+* Nunc vel sem et lacus posuere
+
+
+1) Fusce id libero accumsan
+2) Aliquam in interdum tortor
+	1. Quisque eget porta massa
+	2. Toto est un gars génial
+		1. Genial comme casimir
+		2. Nam lobortis risus sit amet
+3) Ut placerat pharetra quam
+4) Pellentesque fringilla libero
+
+1. Nunc eget facilisis orci. Quisque faucibus odio est, sed molestie justo 
+   lacinia at. Vivamus ligula tellus, tincidunt vel justo quis, aliquam 
+   aliquet risus. Maecenas suscipit consectetur velit, eget malesuada est 
+   aliquet non.
+
+2. Mauris tincidunt imperdiet eleifend. Cras ac lorem lacinia metus tristique
+   accumsan nec sit amet quam. Nulla facilisi. Aliquam at fermentum magna. Sed 
+   id elementum urna. Sed fermentum nisi nibh, nec maximus quam blandit eget. 
+   Curabitur a orci ac risus interdum tristique.
+	- Suspendisse potenti. 
+	- Donec nec tellus tellus. 
+		- Aliquam at fermentum magna.
+		- Nam mauris nisl.
+	- Donec ut sodales ante. 
+      
+3. Curabitur pellentesque, nisl in semper condimentum, urna dui finibus nibh, 
+   ac vestibulum sapien orci ac leo. Sed congue magna et nulla rutrum bibendum. 
+   Vivamus a porta metus. Nam mauris nisl, efficitur sed elit et, fermentum 
+   ultricies velit. Nulla fringilla erat ac aliquet rutrum. Cras vel maximus 
+   risus. 
+
+   Fusce vitae tortor enim. Suspendisse potenti.
+
+4. In eu nibh pretium, porta odio rutrum, gravida elit. Vivamus venenatis magna 
+   id nibh sagittis porta.
+
+   Duis rhoncus nisl et libero eleifend tempor. Phasellus fringilla nunc at 
+   nunc placerat, quis dapibus velit lobortis. Donec id nunc quam. Mauris eu 
+   tincidunt ipsum, nec molestie purus. Etiam suscipit mollis tellus, et 
+   ullamcorper erat. 
+   
