@@ -88,6 +88,7 @@ ultostr(long unsigned value, char *str, int base, char trail)
 }
 
 /* special print to standard ouput for debug purposes */
+static
 void printf_dbg(const char* str, size_t max)
 {
   while(max--) {
@@ -105,16 +106,26 @@ void printf_dbg(const char* str, size_t max)
   }
 }
 
+/* print tabulation space to standard output, for debug purpose */
+static inline
+void printf_tabs(int size, int count)
+{
+  if(count > 0) {
+    int n = size * count;
+    while(n--) putchar(' ');
+  }
+}
 
+/* Structure that hold list parameters for ordered or unordered list render */
 typedef struct MD_RTF_list {
-  unsigned            type;
-  unsigned            count;
-  unsigned            start;
-  unsigned            loose;
-  const MD_RTF_CHAR*  cw_tx;
-  const MD_RTF_CHAR*  cw_li;
-  const MD_RTF_CHAR*  cw_sb;
-  const MD_RTF_CHAR*  cw_sa;
+  unsigned            type;   /* ordered or unordered */
+  unsigned            count;  /* item counter (incremeted) */
+  unsigned            start;  /* item start number */
+  unsigned            loose;  /* tight or loose list type */
+  const MD_RTF_CHAR*  cw_tx;  /* bullet or delimiter character */
+  const MD_RTF_CHAR*  cw_li;  /* indentation space to apply */
+  const MD_RTF_CHAR*  cw_sb;  /* space-before to apply */
+  const MD_RTF_CHAR*  cw_sa;  /* space-after to apply */
 } MD_RTF_LIST;
 
 #define MD_RTF_LIST_TYPE_UL   0x0
@@ -493,13 +504,14 @@ render_end_block(MD_RTF* r)
 static inline void
 render_list_start(MD_RTF* r)
 {
-  #ifdef _DEBUG
-  printf("render_list_start\n");
-  #endif
-
   MD_RTF_CHAR str_num[16];
 
   unsigned d = r->list_dpth;
+
+  #ifdef _DEBUG
+  printf_tabs(2, d);
+  printf("++ render_list_start (%u)\n", r->list[d].count);
+  #endif
 
   /* if this is a reset after nested list we end the last item paragraph */
   if(r->list_rset)
@@ -548,7 +560,8 @@ render_list_item(MD_RTF* r)
   unsigned d = r->list_dpth;
 
   #ifdef _DEBUG
-  printf("render_list_item count=%u start=%u\n", r->list[d].count, r->list[d].start);
+  printf_tabs(2, d);
+  printf("++ render_list_item (%u)\n", r->list[d].start);
   #endif
 
   /* reset paragraph */
@@ -601,7 +614,7 @@ render_enter_block_doc(MD_RTF* r)
   RENDER_VERBATIM(r, "\\uc0\r\n\\pard");
 
   /* default space after and before */
-  render_verbatim(r, "\\sb0\\sa0", 8);
+  render_verbatim(r, "\\sb0\\sa0 ", 9);
 }
 
 static void
@@ -726,8 +739,8 @@ render_enter_block_ul(MD_RTF* r, const MD_BLOCK_UL_DETAIL* ul)
   unsigned d = ++r->list_dpth;
 
   #ifdef _DEBUG
-  for(int i = 0; i < (r->list_dpth*2); ++i) putchar(' ');
-  printf("render_enter_block_ul\n");
+  printf_tabs(2, d);
+  printf("=> render_enter_block_ul\n");
   #endif
 
   /* nested list, we close the previous paragraph */
@@ -760,7 +773,7 @@ render_leave_block_ul(MD_RTF* r)
 {
   #ifdef _DEBUG
   for(int i = 0; i < (r->list_dpth*2); ++i) putchar(' ');
-  printf("render_leave_block_ul\n");
+  printf("<= render_leave_block_ul\n");
   #endif
 
   if(r->list_dpth) {
@@ -787,8 +800,8 @@ render_enter_block_ol(MD_RTF* r, const MD_BLOCK_OL_DETAIL* ol)
   unsigned d = ++r->list_dpth;
 
   #ifdef _DEBUG
-  for(int i = 0; i < (r->list_dpth*2); ++i) putchar(' ');
-  printf("render_enter_block_ol\n");
+  printf_tabs(2, d);
+  printf("=> render_enter_block_ol\n");
   #endif
 
   /* nested list, we close the previous paragraph */
@@ -823,8 +836,8 @@ static void
 render_leave_block_ol(MD_RTF* r)
 {
   #ifdef _DEBUG
-  for(int i = 0; i < (r->list_dpth*2); ++i) putchar(' ');
-  printf("render_leave_block_ol\n");
+  printf_tabs(2, r->list_dpth);
+  printf("<= render_leave_block_ol\n");
   #endif
 
   if(r->list_dpth) {
@@ -847,13 +860,14 @@ render_leave_block_ol(MD_RTF* r)
 static void
 render_enter_block_li(MD_RTF* r, const MD_BLOCK_LI_DETAIL* li)
 {
-  #ifdef _DEBUG
-  for(int i = 0; i < (r->list_dpth*2); ++i) putchar(' ');
-  printf("render_enter_block_li\n");
-  #endif
-
   /* get depth */
   unsigned d = r->list_dpth;
+
+  #ifdef _DEBUG
+  printf_tabs(2, d);
+  printf("=> render_enter_block_li\n");
+  #endif
+
 
   /* reset paragraph counter */
   r->list_para = 0;
@@ -878,8 +892,8 @@ static void
 render_leave_block_li(MD_RTF* r)
 {
   #ifdef _DEBUG
-  for(int i = 0; i < (r->list_dpth*2); ++i) putchar(' ');
-  printf("render_leave_block_li\n");
+  printf_tabs(2, r->list_dpth);
+  printf("<= render_leave_block_li\n");
   #endif
 
   /* Unlike HTML, RTF do not work with opened blocks which must be closed but
@@ -1006,7 +1020,8 @@ static inline void
 render_enter_block_p(MD_RTF* r)
 {
   #ifdef _DEBUG
-  printf("render_enter_block_p\n");
+  printf_tabs(2, r->list_dpth);
+  printf("=> render_enter_block_p\n");
   #endif
 
   /* special case if we are inside a list item */
@@ -1029,14 +1044,15 @@ render_enter_block_p(MD_RTF* r)
   render_font_norm(r);
 
   /* default space after and before */
-  render_verbatim(r, "\\sb0\\sa0", 8);
+  render_verbatim(r, "\\sb0\\sa0 ", 9);
 }
 
 static inline void
 render_leave_block_p(MD_RTF* r)
 {
   #ifdef _DEBUG
-  printf("render_leave_block_p\n");
+  printf_tabs(2, r->list_dpth);
+  printf("<= render_leave_block_p\n");
   #endif
 
   /* special case if within block quote or item list we ignore paragraph end */
@@ -1188,16 +1204,16 @@ text_callback(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdat
   MD_RTF* r = (MD_RTF*) userdata;
 
   #ifdef _DEBUG
-  for(int i = 0; i < (r->list_dpth*2); ++i) putchar(' ');
-  printf("text_callback ");
+  printf_tabs(2, r->list_dpth);
+  printf("++ text_callback (");
   switch(type) {
-    case MD_TEXT_NULLCHAR: printf("MD_TEXT_NULLCHAR\n"); break;
-    case MD_TEXT_BR:  printf("MD_TEXT_BR\n"); break;
-    case MD_TEXT_SOFTBR:  printf("MD_TEXT_SOFTBR\n"); break;
-    case MD_TEXT_CODE: printf("MD_TEXT_CODE\n"); break;
-    case MD_TEXT_HTML:  printf("MD_TEXT_HTML\n"); break;
-    case MD_TEXT_ENTITY: printf("MD_TEXT_ENTITY\n"); break;
-    default: printf("NORMAL\n"); break;
+    case MD_TEXT_NULLCHAR: printf("MD_TEXT_NULLCHAR)\n"); break;
+    case MD_TEXT_BR:  printf("MD_TEXT_BR)\n"); break;
+    case MD_TEXT_SOFTBR:  printf("MD_TEXT_SOFTBR)\n"); break;
+    case MD_TEXT_CODE: printf("MD_TEXT_CODE)\n"); break;
+    case MD_TEXT_HTML:  printf("MD_TEXT_HTML)\n"); break;
+    case MD_TEXT_ENTITY: printf("MD_TEXT_ENTITY)\n"); break;
+    default: printf("NORMAL)\n"); break;
   }
   #endif
 
@@ -1219,16 +1235,16 @@ text_callback(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdat
   MD_RTF* r = (MD_RTF*) userdata;
 
   #ifdef _DEBUG
-  for(int i = 0; i < (r->list_dpth*2); ++i) putchar(' ');
-  printf("text_callback ");
+  printf_tabs(2, r->list_dpth);
+  printf("++ text_callback (");
   switch(type) {
-    case MD_TEXT_NULLCHAR: printf("MD_TEXT_NULLCHAR\n"); break;
-    case MD_TEXT_BR:  printf("MD_TEXT_BR\n"); break;
-    case MD_TEXT_SOFTBR:  printf("MD_TEXT_SOFTBR\n"); break;
-    case MD_TEXT_CODE: printf("MD_TEXT_CODE\n"); break;
-    case MD_TEXT_HTML:  printf("MD_TEXT_HTML\n"); break;
-    case MD_TEXT_ENTITY: printf("MD_TEXT_ENTITY\n"); break;
-    default: printf("NORMAL\n"); break;
+    case MD_TEXT_NULLCHAR: printf("MD_TEXT_NULLCHAR)\n"); break;
+    case MD_TEXT_BR:  printf("MD_TEXT_BR)\n"); break;
+    case MD_TEXT_SOFTBR:  printf("MD_TEXT_SOFTBR)\n"); break;
+    case MD_TEXT_CODE: printf("MD_TEXT_CODE)\n"); break;
+    case MD_TEXT_HTML:  printf("MD_TEXT_HTML)\n"); break;
+    case MD_TEXT_ENTITY: printf("MD_TEXT_ENTITY)\n"); break;
+    default: printf("NORMAL)\n"); break;
   }
   #endif
 
@@ -1320,8 +1336,8 @@ int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
     render.font_base = 98;
 
   /* general font sizes */
-  sprintf(render.cw_fs[0], "\\fs%u", render.font_base );
-  sprintf(render.cw_fs[1], "\\fs%u", (unsigned)(0.9f*render.font_base) );
+  sprintf(render.cw_fs[0], "\\fs%u ", render.font_base );
+  sprintf(render.cw_fs[1], "\\fs%u ", (unsigned)(0.9f*render.font_base) );
 
   /* titles styles per level with font size and space-after values */
   sprintf(render.cw_hf[0], "\\fs%u\\sa%u\\b ", (unsigned)(2.2f*render.font_base), 8*render.font_base);
@@ -1340,23 +1356,23 @@ int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
   sprintf(render.cw_sa[1], "\\sa%u ", 2*render.font_base);
 
   /* left-ident values , up to 8 level */
-  sprintf(render.cw_li[0], "\\li%u",  20*render.font_base);
-  sprintf(render.cw_li[1], "\\li%u",  40*render.font_base);
-  sprintf(render.cw_li[2], "\\li%u",  60*render.font_base);
-  sprintf(render.cw_li[3], "\\li%u",  80*render.font_base);
-  sprintf(render.cw_li[4], "\\li%u", 100*render.font_base);
-  sprintf(render.cw_li[5], "\\li%u", 120*render.font_base);
-  sprintf(render.cw_li[6], "\\li%u", 140*render.font_base);
-  sprintf(render.cw_li[7], "\\li%u", 160*render.font_base);
+  sprintf(render.cw_li[0], "\\li%u ",  20*render.font_base);
+  sprintf(render.cw_li[1], "\\li%u ",  40*render.font_base);
+  sprintf(render.cw_li[2], "\\li%u ",  60*render.font_base);
+  sprintf(render.cw_li[3], "\\li%u ",  80*render.font_base);
+  sprintf(render.cw_li[4], "\\li%u ", 100*render.font_base);
+  sprintf(render.cw_li[5], "\\li%u ", 120*render.font_base);
+  sprintf(render.cw_li[6], "\\li%u ", 140*render.font_base);
+  sprintf(render.cw_li[7], "\\li%u ", 160*render.font_base);
 
   /* tables basic parameter and left margin */
   unsigned l = 12*render.font_base;
-  sprintf(render.cw_tr[0], "\\trautofit1\\trgaph%u\\trleft%u", 6*render.font_base, l);
-  sprintf(render.cw_tr[1], "\\trgaph%u\\trrh%u\\trleft%u", 3*render.font_base, 16*render.font_base, l);
+  sprintf(render.cw_tr[0], "\\trautofit1\\trgaph%u\\trleft%u ", 6*render.font_base, l);
+  sprintf(render.cw_tr[1], "\\trgaph%u\\trrh%u\\trleft%u ", 3*render.font_base, 16*render.font_base, l);
 
   /* frist-line indent values, used for bulleted and numbered lists */
-  sprintf(render.cw_fi[0], "\\fi%i", -10*render.font_base);
-  sprintf(render.cw_fi[1], "\\fi%i", -12*render.font_base);
+  sprintf(render.cw_fi[0], "\\fi%i ", -10*render.font_base);
+  sprintf(render.cw_fi[1], "\\fi%i ", -12*render.font_base);
 
   /* table cell width adjusted to given page width */
   unsigned w = render.page_width - (2*render.page_margin) - (0.1f*render.page_width);
