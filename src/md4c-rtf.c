@@ -87,6 +87,7 @@ ultostr(long unsigned value, char *str, int base, char trail)
   return str;
 }
 
+#ifdef _DEBUG
 /* special print to standard ouput for debug purposes */
 static
 void printf_dbg(const char* str, size_t max)
@@ -107,7 +108,7 @@ void printf_dbg(const char* str, size_t max)
 }
 
 /* print tabulation space to standard output, for debug purpose */
-static inline
+static
 void printf_tabs(int size, int count)
 {
   if(count > 0) {
@@ -115,6 +116,7 @@ void printf_tabs(int size, int count)
     while(n--) putchar(' ');
   }
 }
+#endif
 
 /* Structure that hold list parameters for ordered or unordered list render */
 typedef struct MD_RTF_list {
