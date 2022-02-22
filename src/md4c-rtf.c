@@ -170,7 +170,7 @@ typedef struct MD_RTF_tag {
   MD_RTF_CHAR cw_sa[2][16];
   MD_RTF_CHAR cw_sb[2][16];
   MD_RTF_CHAR cw_li[8][16];
-  MD_RTF_CHAR cw_tr[2][32];
+  MD_RTF_CHAR cw_tr[2][72];
   MD_RTF_CHAR cw_fi[2][16];
   MD_RTF_CHAR cw_cx[2][16];
 } MD_RTF;
@@ -638,11 +638,11 @@ render_enter_block_hr(MD_RTF* r)
   visible. Other border are also visible but defined with the same color as
   background, this way Rich Edit 4.1 don't display them in light gray. */
 
-  render_verbatim(r, "\\pard\\f0\\fs0\\trowd\\trrh-0\\trautofit1" //< 35 bytes
-                      "\\clbrdrt\\brdrs\\brdrw1\\brdrcf2" //< 29 bytes
+  render_verbatim(r, "\\pard\\f0\\fs0\\trowd\\trrh-1\\trftsWidth2\\trwWidth5000\\trautofit1" /* 61 bytes */
+                      "\\clbrdrt\\brdrs\\brdrw1\\brdrcf2" /* 29 bytes */
                       "\\clbrdrb\\brdrs\\brdrw1\\brdrcf3"
-                      "\\clbrdrl\\brdrs\\brdrw1\\brdrcf2"   /* invisible border */
-                      "\\clbrdrr\\brdrs\\brdrw1\\brdrcf2", 152); /* invisible border */
+                      "\\clbrdrl\\brdrs\\brdrw1\\brdrcf2"
+                      "\\clbrdrr\\brdrs\\brdrw1\\brdrcf2", 177);
 
   RENDER_VERBATIM(r, r->cw_cx[1]); // \cellxN
   render_verbatim(r, "\\cell\\row", 9);
@@ -684,9 +684,8 @@ render_enter_block_quote(MD_RTF* r)
                       "\\clbrdrl\\brdrs\\brdrw50\\brdrcf3"
                       "\\clbrdrr\\brdrs\\brdrw1\\brdrcf2", 117); /* invisible border */
 
-  /* set cell width, unfortunately basic RTF viewer does not handle
-  autofit so we must define static cell size according defined page width */
-  RENDER_VERBATIM(r, r->cw_cx[0]); // \cellxN
+  /* cell width fixed to 90% of page width */
+  RENDER_VERBATIM(r, r->cw_cx[0]); /* \cellxN */
 
   /* prevent space-after and line feed at end of paragraph */
   r->quot_blck = 1;
@@ -720,9 +719,8 @@ render_enter_block_code(MD_RTF* r)
                       "\\clbrdrl\\brdrs\\brdrw50\\brdrcf3"
                       "\\clbrdrr\\brdrs\\brdrw1\\brdrcf2", 117);  /* invisible border */
 
-  /* set cell width, unfortunately basic RTF viewer does not handle
-  autofit so we must define static cell size according defined page width */
-  RENDER_VERBATIM(r, r->cw_cx[0]); // \cellxN
+  /* cell width fixed to 90% of page width */
+  RENDER_VERBATIM(r, r->cw_cx[0]); /* \cellxN */
 }
 
 static void
@@ -953,7 +951,7 @@ render_enter_block_tr(MD_RTF* r)
   RENDER_VERBATIM(r, r->cw_tr[1]);
 
   /* 9000 seem to be the average width of an RTF document */
-  float tw = r->page_width - (2*r->page_margin) - (0.1f*r->page_width);
+  float tw = 0.9f * r->page_width;
   unsigned cw = tw / r->tabl_cols;
 
   /* we must first declare cells with their respecting properties */
@@ -1282,7 +1280,7 @@ int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
   render.userdata = userdata;
   render.flags = renderer_flags;
   render.font_base = 2 * font_size; /* point to half-point */
-  render.page_width = 56.689f * doc_width; /* mm to twip */
+  render.page_width = 56.689f * doc_width; /* pixels to twips */
   render.page_height = 1.41428f * render.page_width; /* ISO 216 ratio */
   render.page_margin = 400; /* left and right margin */
   render.list_dpth = -1;
@@ -1369,17 +1367,16 @@ int md_rtf(const MD_CHAR* input, MD_SIZE input_size,
 
   /* tables basic parameter and left margin */
   unsigned l = 12*render.font_base;
-  sprintf(render.cw_tr[0], "\\trautofit1\\trgaph%u\\trleft%u ", 6*render.font_base, l);
-  sprintf(render.cw_tr[1], "\\trgaph%u\\trrh%u\\trleft%u ", 3*render.font_base, 16*render.font_base, l);
+  sprintf(render.cw_tr[0], "\\trgaph%u\\trleft%u\\trftsWidth2\\trwWidth4500\\trautofit1 ", 6*render.font_base, l);
+  sprintf(render.cw_tr[1], "\\trgaph%u\\trrh%u\\trleft%u\\trftsWidth2\\trwWidth4500\\trautofit1 ", 3*render.font_base, 16*render.font_base, l);
 
   /* frist-line indent values, used for bulleted and numbered lists */
   sprintf(render.cw_fi[0], "\\fi%i ", -10*render.font_base);
   sprintf(render.cw_fi[1], "\\fi%i ", -12*render.font_base);
 
   /* table cell width adjusted to given page width */
-  unsigned w = render.page_width - (2*render.page_margin) - (0.1f*render.page_width);
-  sprintf(render.cw_cx[0], "\\cellx%u ", w );
-  sprintf(render.cw_cx[1], "\\cellx%u ", render.page_width * 2 );
+  sprintf(render.cw_cx[0], "\\cellx%u ", (unsigned)(0.9f * render.page_width));
+  sprintf(render.cw_cx[1], "\\cellx%u ", render.page_width);
 
   int result = md_parse(input, input_size, &parser, (void*)&render);
 
