@@ -117,8 +117,8 @@ static void md2rtf_parse_text(MD2RTF_CTX* mdrtf, const char* text, size_t size)
 
   unsigned parser_flags = MD_FLAG_UNDERLINE|MD_FLAG_TABLES|MD_FLAG_PERMISSIVEAUTOLINKS;
   unsigned renderer_flags = MD_RTF_FLAG_DEBUG|MD_RTF_FLAG_SKIP_UTF8_BOM;
-  unsigned font_size = 12;
-  unsigned doc_width = 210;
+  unsigned font_size = 11;
+  unsigned doc_width = 229;
 
   md_rtf(text, size, md2rtf_write_cb, mdrtf, parser_flags, renderer_flags, font_size, doc_width);
 }
