@@ -4,7 +4,7 @@ RTF Renderer for MD4C Parser.
 
 # Presentation
 
-MD4C-RTF is an RTF rendrer for the MD4C Markdown Parser. It is widely based on
+MD4C-RTF is an RTF renderer for the MD4C Markdown Parser. It is widely based on
 the MD4C-HTML renderer included with the MD4C Parser, follow similar name
 conventions and structure in respect to the original project.
 
